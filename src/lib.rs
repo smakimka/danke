@@ -60,6 +60,7 @@ pub(crate) async fn get_rating(username: &str, pwd: &str, semester: u8) -> Optio
     ];
 
     let client = reqwest::ClientBuilder::new()
+    .danger_accept_invalid_certs(true)
     .cookie_store(true)
     .build().unwrap();
 
