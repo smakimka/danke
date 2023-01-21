@@ -6,7 +6,7 @@ pub(crate) struct Rating {
 
 #[derive(Debug)]
 pub(crate) struct Subject {
-    name: String,
+    pub(crate) name: String,
     attendance: f32,
     control: f32,
     creative: f32,
