@@ -69,11 +69,12 @@ async fn main() {
                 if let Err(err) = response {
                     log::error!("Error in handler: {:?}", err);
                 }
+                return respond(());
             } 
 
             let user = user.unwrap();
             let rating = lib::get_rating(&user.username, &user.pwd, 7).await;
-            
+
             if rating.is_none() || rating.as_ref().unwrap().len() == 0 {
                 let answer = InlineQueryResultArticle::new(
                     "1".to_string(),
@@ -85,6 +86,8 @@ async fn main() {
                 if let Err(err) = response {
                     log::error!("Error in handler: {:?}", err);
                 }
+                
+                return respond(());
             }
             
             let rating = rating.unwrap();
