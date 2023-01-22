@@ -86,7 +86,7 @@ async fn main() {
                 if let Err(err) = response {
                     log::error!("Error in handler: {:?}", err);
                 }
-                
+
                 return respond(());
             }
             
@@ -104,7 +104,7 @@ async fn main() {
                 results.push(InlineQueryResult::Article(article));
             }
 
-            let response = bot.answer_inline_query(&q.id, results).cache_time(0).send().await;
+            let response = bot.answer_inline_query(&q.id, results).is_personal(true).send().await;
             if let Err(err) = response {
                 log::error!("Error in handler: {:?}", err);
             }
