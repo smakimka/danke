@@ -1,15 +1,16 @@
+use std::collections::HashMap;
+
 use dotenv::dotenv;
-use log::{info, warn};
-use std::sync::{Arc, Mutex};
 use teloxide::{
     prelude::*,
-    types::{Dice, Update, UserId, 
+    types::{Update, UserId, 
         InlineQueryResult, InlineQueryResultArticle, InputMessageContent, InputMessageContentText},
     utils::command::BotCommands,
 };
 
 mod db;
-mod lib;
+mod rating;
+mod maintain;
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -21,8 +22,10 @@ enum Command {
     Start,
     #[command(description = "display this text.")]
     Help,
-    #[command(description = "handle a username and an age.", parse_with = "split")]
+    #[command(description = "Set a username and a password for rea website", parse_with = "split")]
     LoginInfo { username: String, pwd: String },
+    #[command(description = "Set a semester to get rating from")]
+    SetSemester { semester: i64 },
     #[command(description = "get rating from rea website")]
     GetRating,
 }
@@ -53,6 +56,46 @@ async fn main() {
         bot_maintainer: UserId(434585640),
         conn,
     };
+
+    tokio::spawn(async move {
+        let conn = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite:danke.db")
+        .await
+        .unwrap();
+
+        let client = reqwest::Client::new();
+
+        loop {
+            let notifications = maintain::get_differences(&conn).await;
+            if notifications.is_none() { 
+                log::warn!("Notifications returned with None"); 
+                tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+                continue;
+            }
+            
+            let mut set: tokio::task::JoinSet<Result<reqwest::Response, reqwest::Error>> = tokio::task::JoinSet::new();  
+            for notification in notifications.unwrap() {
+                let mut data: HashMap<&str, String> = HashMap::new();
+                data.insert("chat_id", notification.chat_id.to_string());
+                data.insert("text", notification.message);
+                data.insert("parse_mode", "MarkdownV2".to_string());
+
+                set.spawn( client.post("https://api.telegram.org/bot5895079313:AAHqM9LgVvK6GMhaGtpuWHT7zrXroPrmlQk/sendMessage")
+                           .json(&data)
+                           .send());
+            }
+
+            while let Some(res) = set.join_next().await {
+                if res.is_err() {
+                    log::error!("error while sending notification: {}", res.err().unwrap().to_string())
+                }
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(1200)).await;
+        }   
+    });
+
     
     let inline_query_handler = Update::filter_inline_query().
         branch(dptree::endpoint(|bot: Bot, q: InlineQuery, cfg: Config| async move {
@@ -73,9 +116,9 @@ async fn main() {
             } 
 
             let user = user.unwrap();
-            let rating = lib::get_rating(&user.username, &user.pwd, 7).await;
+            let rating = rating::get_rating(user).await;
 
-            if rating.is_none() || rating.as_ref().unwrap().len() == 0 {
+            if rating.is_none() || rating.as_ref().unwrap().subjects.len() == 0 {
                 let answer = InlineQueryResultArticle::new(
                     "1".to_string(),
                     "There has been an error".to_string(),
@@ -93,7 +136,7 @@ async fn main() {
             let rating = rating.unwrap();
 
             let mut results = vec![];
-            for (subject_num, subject) in rating.into_iter().enumerate() {
+            for (subject_num, subject) in rating.subjects.into_iter().enumerate() {
                 let desc = subject.to_string();
 
                 let article = InlineQueryResultArticle::new(
@@ -170,20 +213,48 @@ async fn commands_handler(
                     "👌".to_string()
                 }
             }
+            Command::SetSemester { semester } => {
+                if semester > 0 && semester < 9 {
+                    user.semester = semester as u8;
+                    let sync_res = db::sync_user(&cfg.conn, &user).await;
+                    if sync_res.is_err() {
+                        "⚠️".to_string()
+                    } else {
+                        let del_res = db::delete_rating(&cfg.conn, &user).await;
+                        if del_res.is_err() {
+                            "⚠️".to_string()
+                        }
+                        else {
+                            "👌".to_string()
+                        }
+                    }
+                }
+                else {
+                    "Семестр, епта, от 1 до 8, если кто не знал".to_string()
+                }
+            }
             Command::GetRating => {
-                if user.username.is_empty() || user.pwd.is_empty() {
-                    "Надо ввести логин и пароль".to_string()
+                if user.username.is_empty() || user.pwd.is_empty() || user.semester == 0 {
+                    "Надо ввести логин, пароль и семестр".to_string()
                 } else {
-                    let rating = lib::get_rating(&user.username, &user.pwd, 7).await;
+                    let rating = rating::get_rating(user).await;
                     if rating.is_none() {
                         "⚠️".to_string()
                     } else {
-                        rating
+                        let string = rating
                             .unwrap()
+                            .subjects
                             .iter()
                             .map(|subject| subject.to_string())
                             .collect::<Vec<String>>()
-                            .join("\n\n")
+                            .join("\n\n");
+
+                        if string.is_empty() {
+                            "Нету рейтинга".to_string()
+                        }
+                        else {
+                            string
+                        }
                     }
                 }
             }

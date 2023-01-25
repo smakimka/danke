@@ -1,16 +1,19 @@
+use crate::db::User;
 use log::warn;
 use scraper::{Html, Selector, ElementRef};
 
 pub(crate) struct Rating {
+    pub(crate) user: User,
+    pub(crate) subjects: Vec<Subject>
 }
 
-#[derive(Debug)]
+#[derive(Debug, sqlx::FromRow)]
 pub(crate) struct Subject {
     pub(crate) name: String,
-    attendance: f32,
-    control: f32,
-    creative: f32,
-    test: f32
+    pub(crate) attendance: f32,
+    pub(crate) control: f32,
+    pub(crate) creative: f32,
+    pub(crate) test: f32
 }
 
 impl Subject {
@@ -47,16 +50,16 @@ fn parse_test_value(subject_elem: &ElementRef, item_selector: &Selector) -> Opti
     Some(value.unwrap())
 }
 
-pub(crate) async fn get_rating(username: &str, pwd: &str, semester: u8) -> Option<Vec<Subject>> {
+pub(crate) async fn get_rating(user: User) -> Option<Rating> {
     let params = [
         ("AUTH_FORM", "Y"), 
         ("TYPE", "AUTH"), 
         ("backurl", "/index.php"), 
-        ("USER_LOGIN", username),
-        ("USER_PASSWORD", pwd),
+        ("USER_LOGIN", &user.username),
+        ("USER_PASSWORD", &user.pwd),
         ("Login", "Войти"),
         ("login", "yes"),
-        ("semester", "7-й семестр")
+        ("semester", &format!("{}-й семестр", user.semester))
     ];
 
     let client = reqwest::ClientBuilder::new()
@@ -117,12 +120,12 @@ pub(crate) async fn get_rating(username: &str, pwd: &str, semester: u8) -> Optio
     
     let number_selector = Selector::parse("a").unwrap();
 
-    let mut rating: Vec<Subject> = Vec::new();
+    let mut rating = Rating {user, subjects: vec![] };
     for subject_elem in rating_html.select(&subjects_selector) {
         let subject_name: Vec<ElementRef> = subject_elem.select(&name_selector).collect();
         if subject_name.len() != 1 { warn!("Couldn't find name of the subject"); return None; }
 
-        rating.push(
+        rating.subjects.push(
             Subject { 
                 name: subject_name[0].inner_html().trim().to_string(), 
                 attendance: parse_rating_value(&subject_elem, &attendance_selector, &number_selector)?,
