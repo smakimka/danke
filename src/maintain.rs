@@ -2,6 +2,7 @@ use crate::db;
 use crate::rating;
 use std::collections::HashMap;
 use crate::rating::Rating;
+use teloxide::utils::markdown;
 
 #[derive(Debug)]
 struct Notification {
@@ -55,7 +56,7 @@ async fn get_differences(conn: &sqlx::Pool<sqlx::Sqlite>) -> Option<Vec<Notifica
                     return None; 
                 }
             }
-            notifications.push(Notification { chat_id: rating.user.chat_id, message: teloxide::utils::markdown::escape("Рейтинг обновился (вероятно это уведомление из-за смены семестра)") });
+            notifications.push(Notification { chat_id: rating.user.chat_id, message: markdown::escape("Рейтинг обновился (вероятно это уведомление из-за смены семестра)") });
         }
         else {
             let mut message: Vec<String> = vec![];
@@ -65,19 +66,19 @@ async fn get_differences(conn: &sqlx::Pool<sqlx::Sqlite>) -> Option<Vec<Notifica
                     
                     let mut change: bool = false;
                     if subject.attendance != db_subject.attendance {
-                        message.push(format!("||{}|| за посещение", teloxide::utils::markdown::escape(&(subject.attendance - db_subject.attendance).to_string())));
+                        message.push(format!("||{}|| за посещение", markdown::escape(&(subject.attendance - db_subject.attendance).to_string())));
                         change = true;
                     }
                     if subject.creative != db_subject.creative {
-                        message.push(format!("||{}|| по творческому", teloxide::utils::markdown::escape(&(subject.creative - db_subject.creative).to_string())));
+                        message.push(format!("||{}|| по творческому", markdown::escape(&(subject.creative - db_subject.creative).to_string())));
                         change = true;
                     }
                     if subject.control != db_subject.control {
-                        message.push(format!("||{}|| за контрольный", teloxide::utils::markdown::escape(&(subject.control - db_subject.control).to_string())));
+                        message.push(format!("||{}|| за контрольный", markdown::escape(&(subject.control - db_subject.control).to_string())));
                         change = true;
                     }
                     if subject.test != db_subject.test {
-                        message.push(format!("||{}|| за экз/тест", teloxide::utils::markdown::escape(&(subject.test - db_subject.test).to_string())));
+                        message.push(format!("||{}|| за экз/тест", markdown::escape(&(subject.test - db_subject.test).to_string())));
                         change = true;
                     }
 
@@ -92,8 +93,21 @@ async fn get_differences(conn: &sqlx::Pool<sqlx::Sqlite>) -> Option<Vec<Notifica
                             return None; 
                         }
 
-                        message.push(format!("По {}\n", teloxide::utils::markdown::escape(&(subject.name).to_string())));
+                        message.push(format!("По {}\n", markdown::escape(&(subject.name).to_string())));
                     } 
+                }
+                else {
+                    let rating_id = sqlx::query!("insert into rating (user_id, subject_name, attendance, control, creative, test) values (?, ?, ?, ?, ?, ?)", 
+                        rating.user.id, subject.name, subject.attendance, subject.control, subject.creative, subject.test)
+                    .execute(conn)
+                    .await;
+
+                    if rating_id.is_err() {
+                        log::error!("Couldn't insert rating");
+                        return None; 
+                    }
+
+                    message.insert(0, format!("Появился новый предмет:\n{}", markdown::escape(&subject.to_string())))
                 }
             }
             if !message.is_empty() {

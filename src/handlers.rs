@@ -75,7 +75,8 @@ pub(crate) async fn commands_handler(
 ) -> Result<(), teloxide::RequestError> {
     let user = db::get_user(&cfg.conn, msg.chat.id.0).await;
     if user.is_none() {
-        return error_response(bot, msg).await;
+        bot.send_message(msg.chat.id, "⚠️").await?;
+        return Ok(());
     } 
     let mut user = user.unwrap();
 
@@ -105,7 +106,7 @@ pub(crate) async fn commands_handler(
                         "⚠️".to_string()
                     }
                     else {
-                        "👌, Теперь придется подождать, пока твой рейтинг обновится, я пришлю уведомление (не больше 20 минут))".to_string()
+                        "👌, Теперь придется подождать, пока твой рейтинг обновится, я пришлю уведомление (это займет не больше 20 минут))".to_string()
                     }
                 }
             }
@@ -133,10 +134,5 @@ pub(crate) async fn commands_handler(
     };
 
     bot.send_message(msg.chat.id, text).await?;
-    Ok(())
-}
-
-async fn error_response(bot: Bot, msg: Message) -> Result<(), teloxide::RequestError> {
-    bot.send_message(msg.chat.id, "⚠️").await?;
     Ok(())
 }
