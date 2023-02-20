@@ -26,7 +26,7 @@ enum Command {
     SetSemester { semester: i64 },
     #[command(description = "Получить рейтинг по всем предметам")]
     GetRating,
-    #[command(description = "нет описания")]
+    #[command(description = "для одмина")]
     Stats,
 }
 
