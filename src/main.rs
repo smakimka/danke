@@ -6,26 +6,28 @@ use teloxide::{
 };
 
 mod db;
-mod rating;
-mod maintain;
 mod handlers;
+mod maintain;
+mod rating;
 
 #[derive(BotCommands, Clone)]
-#[command(
-    rename_rule = "lowercase",
-    description = "Список досутпных команд:"
-)]
+#[command(rename_rule = "lowercase", description = "Список досутпных команд:")]
 enum Command {
     #[command(description = "Начать диалог")]
     Start,
     #[command(description = "Отобразить этот текст")]
     Help,
-    #[command(description = "Установить логин и пароль (/logininfo login password)", parse_with = "split")]
+    #[command(
+        description = "Установить логин и пароль (/logininfo login password)",
+        parse_with = "split"
+    )]
     LoginInfo { username: String, pwd: String },
     #[command(description = "Установить номер семестра (/setsemester 7)")]
     SetSemester { semester: i64 },
     #[command(description = "Получить рейтинг по всем предметам")]
     GetRating,
+    #[command()]
+    Stats,
 }
 
 #[derive(Clone)]
@@ -58,20 +60,19 @@ async fn main() {
 
     let update_sleep_secs: u64 = 1200;
     let failed_update_sleep_secs: u64 = 600;
-    
+
     tokio::spawn(async move {
         maintain::run_updates(update_sleep_secs, failed_update_sleep_secs, db_url).await
     });
 
-    
-    let inline_query_handler = Update::filter_inline_query().
-        branch(dptree::endpoint(handlers::inline_query_handler));
+    let inline_query_handler =
+        Update::filter_inline_query().branch(dptree::endpoint(handlers::inline_query_handler));
 
     let message_handler = Update::filter_message()
         .branch(
             dptree::entry()
-            .filter_command::<Command>()
-            .endpoint(handlers::commands_handler),
+                .filter_command::<Command>()
+                .endpoint(handlers::commands_handler),
         )
         .branch(dptree::endpoint(|msg: Message, bot: Bot| async move {
             bot.send_message(msg.chat.id, "😑").await?;

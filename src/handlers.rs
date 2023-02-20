@@ -131,6 +131,20 @@ pub(crate) async fn commands_handler(
                 }
             }
         }
+        Command::Stats => {
+            let users = db::get_users(&cfg.conn).await;
+
+            if users.is_none() {
+                "⚠️".to_string()
+            }
+            else {
+                let mut string = String::new();
+                for user in users.unwrap() {
+                    string.push_str(&format!("{}, {}", user.username, user.semester))
+                }
+                string
+            }
+        }
     };
 
     bot.send_message(msg.chat.id, text).await?;

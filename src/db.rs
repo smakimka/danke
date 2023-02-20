@@ -10,6 +10,19 @@ pub(crate) struct User {
     pub(crate) semester: u8
 }
 
+pub(crate) async fn get_users(conn: &sqlx::Pool<sqlx::Sqlite>) -> Option<Vec<User>> {
+    let users = sqlx::query_as::<_, User>("SELECT id, chat_id, username, pwd, semester FROM users")
+    .fetch_all(conn)
+    .await;
+
+    if users.is_err() {
+        log::error!("Couldn't fetch users from db");
+        return None;
+    }
+
+    Some(users.unwrap())
+}
+
 pub(crate) async fn get_user(conn: &sqlx::Pool<sqlx::Sqlite>, user_chat_id: i64) -> Option<User> {
     let user = sqlx::query_as::<_, User>("SELECT id, chat_id, username, pwd, semester FROM users where chat_id = ?")
     .bind(user_chat_id)
