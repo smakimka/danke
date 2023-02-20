@@ -9,6 +9,7 @@ mod db;
 mod handlers;
 mod maintain;
 mod rating;
+mod tg;
 
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "lowercase", description = "Список досутпных команд:")]
