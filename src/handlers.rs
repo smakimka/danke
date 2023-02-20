@@ -144,7 +144,7 @@ pub(crate) async fn commands_handler(
                 else {
                     let mut string = String::new();
                     for user in users.unwrap() {
-                        string.push_str(&format!("login: {}, sem: {}\n", user.username, user.semester))
+                        string.push_str(&format!("User {} [login: {}, sem: {}]\n", user.chat_id, user.username, user.semester))
                     }
                     string
                 }
